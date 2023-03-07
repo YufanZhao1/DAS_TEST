@@ -2,6 +2,7 @@
 title: "part1"
 output: html_document
 date: "2023-03-07"
+output: github_document 
 ---
 
 ```{r setup, include=FALSE}
