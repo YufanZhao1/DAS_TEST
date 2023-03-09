@@ -1,0 +1,371 @@
+---
+title: "GLM"
+output: html_document
+date: "2023-03-09"
+
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,warning = FALSE)
+```
+
+
+
+```{r }
+library(tidyverse)
+library(moderndive)
+library(gapminder)
+library(sjPlot)
+library(stats)
+library(jtools)
+```
+
+
+#Binary logistic regression with one numerical explanatory variable
+
+```{r }
+evals.gender <- evals %>%
+                  select(gender, age)
+evals.gender
+```
+
+
+look at a boxplot of by to get an initial impression of the data
+
+```{r}
+ggplot(data = evals.gender, aes(x = gender, y = age, fill = gender)) +
+  geom_boxplot() +
+  labs(x = "Gender", y = "Age")+ 
+  theme(legend.position = "none")
+
+```
+
+## Log-odds
+The logistic regression model with **gender** as the response and **age** as the explanatory variable is given by:
+
+```{r}
+model <- glm(gender ~ age, data = evals.gender, 
+             family = binomial(link = "logit"))
+model
+model %>%
+  summary()
+#or
+summ(model)
+```
+
+
+*Baseline* in R being taken as the one which comes first alphabetically, in this model is **female**.
+```{r}
+levels(evals.gender$gender)
+```
+
+extract the estimated coefficients:
+```{r}
+mod1coefs <- round(coef(model), 2)
+mod1coefs
+```
+
+
+\begin{align}
+
+\ln\left(\frac{p}{1-p}\right) &= \alpha + \beta \cdot
+\textrm{age} = `r mod1coefs[1]` + `r mod1coefs[2]` \cdot \textrm{age} \nonumber
+
+\end{align}
+
+The *log-odds* of the instructor being male increase by 0.06 for every one unit increase in.
+a 95% confidence interval for these log-odds:
+
+```{r}
+library(kableExtra)
+confint(model) %>%
+  kable()
+```
+
+#
+```{r}
+mod.coef.logodds <- model %>%
+                      summary() %>%
+                      coef()
+mod.coef.logodds
+
+#logodds.lower
+age.logodds.lower <- mod.coef.logodds["age", "Estimate"] - 
+                      1.96 * mod.coef.logodds["age", "Std.Error"]
+age.logodds.lower
+
+#logodds.upper
+age.logodds.upper <- mod.coef.logodds["age", "Estimate"] + 
+                      1.96 * mod.coef.logodds["age", "Std. Error"]
+age.logodds.upper
+```
+
+Hence the point estimate for the log-odds is 0.06, which has a corresponding 95% confidence interval of (0.04, 0.08),This can be displayed graphically :
+
+```{r}
+#The log-odds of age for male instructors.
+plot_model(model, show.values = TRUE, transform = NULL,
+           title = "Log-Odds (Male instructor)", show.p = FALSE)
+```
+
+ let's add the estimates of the log-odds to our data set:
+
+```{r}
+evals.gender <- evals.gender %>%
+                  mutate(logodds.male = predict(model))
+evals.gender
+evals.gender[evals.gender$age==29 ,3]
+```
+
+
+
+
+## odds
+odds scale as it is easier to interpret an odds-ratio as opposed to the log-odds-ratio.
+
+```{r}
+model %>%
+ coef() %>%
+  exp()
+```
+
+```{r}
+age.odds.lower <- exp(age.logodds.lower)
+age.odds.upper <- exp(age.logodds.upper)
+age.odds.lower
+age.odds.upper
+```
+Hence the point estimate for the odds is 1.06, which has a corresponding 95% confidence interval of (1.04, 1.09).
+displayed graphically :
+```{r}
+plot_model(model, show.values = TRUE, axis.lim = c(1,1.5),
+           title = "Odds (Male instructor)", show.p = FALSE)
+```
+```{r}
+evals.gender <- evals.gender %>%
+                  mutate(odds.male = exp(logodds.male))
+evals.gender
+
+evals.gender[evals.gender$age==56 ,4]
+```
+
+
+
+## Probabilities
+```{r}
+p.num <- exp(mod.coef.logodds["(Intercept)", "Estimate"] + mod.coef.logodds["age", "Estimate"] * 52)
+p.denom <- 1 + p.num
+p.num / p.denom
+```
+or use **plogis()** function
+
+```{r}
+plogis(mod.coef.logodds["(Intercept)", "Estimate"] + mod.coef.logodds["age", "Estimate"] * 52)
+```
+
+add the probabilities to our data:
+```{r}
+evals.gender <- evals.gender %>%
+                  mutate(probs.male = fitted(model))
+evals.gender
+
+#estimated probabilities.
+predict(model, type = "response")
+
+#??????????
+evals.gender[evals.gender$age==33 & evals.gender$gender=="female",5]
+
+#??????????
+
+```
+
+
+plot the probability:
+```{r}
+ggplot(data = evals.gender, aes(x = age, y = probs.male)) +
+  geom_smooth(method="glm", 
+              method.args = list(family="binomial"), 
+              se = FALSE) +
+  labs(x = "Age", y = "Probability of instructor being male")
+```
+
+```{r estimated probabilities}
+plot_model(model, type = "pred", title = "",
+            axis.title = c("Age", "Prob. of instructor being male"))
+```
+
+
+
+
+
+
+#Binary logistic regression with one categorical explanatory variable
+
+the binary categorical variable **ethnicity** as our explanatory variable
+**gender** as the response
+```{r}
+evals.ethnic <- evals %>%
+                  select(gender, ethnicity)
+evals.ethnic
+```
+
+# summarise this data in a table format:
+```{r summarise}
+library(janitor)
+evals %>% 
+  tabyl(ethnicity, gender) %>% 
+  adorn_percentages() %>% 
+  adorn_pct_formatting() %>% 
+  adorn_ns() # To show original counts
+```
+
+
+visualize the distribution using a barplot:
+```{r  a barplot}
+ggplot(evals, aes(x= gender,  y = ..prop.., group=ethnicity, fill=ethnicity)) + 
+    geom_bar(position="dodge", stat="count") +
+    labs(y = "Proportion")
+```
+
+
+Now we shall fit a logistic regression model to determine whether the gender of a teaching instructor can be predicted from their ethnicity.
+
+
+## Log-odds
+logistic regression model:
+
+```{r logistic model}
+model.ethnic <- glm(gender ~ ethnicity, data = evals.ethnic, family = binomial(link = "logit"))
+
+model.ethnic %>%
+  summary()
+```
+
+```{r baseline}
+levels(evals.ethnic$ethnicity)
+```
+
+95% confidence interval for these log-odds
+```{r log-odds CI}
+confint(model.ethnic) %>%
+  kable()
+```
+#or calculate the CI:
+```{r}
+mod.ethnic.coef.logodds <- model.ethnic %>%
+                            summary() %>%
+                            coef()
+mod.ethnic.coef.logodds
+
+ethnic.logodds.lower <- mod.ethnic.coef.logodds["ethnicitynot minority", "Estimate"] - 
+                        1.96 * mod.ethnic.coef.logodds["ethnicitynot minority", "Std. Error"]
+
+ethnic.logodds.upper <- mod.ethnic.coef.logodds["ethnicitynot minority", "Estimate"] + 
+                        1.96 * mod.ethnic.coef.logodds["ethnicitynot minority", "Std. Error"]
+
+ethnic.logodds.lower
+ethnic.logodds.upper
+```
+Hence the point estimate for the log-odds is 0.66, which has a corresponding 95% confidence interval of (0.13, 1.2).
+
+
+displayed graphically 
+
+```{r}
+plot_model(model.ethnic, show.values = TRUE, transform = NULL,
+           title = "Log-Odds (Male instructor)", show.p = FALSE)
+```
+add the estimates of the log-odds to our data set:
+
+```{r add log-odds}
+evals.ethnic <- evals.ethnic %>%
+                  mutate(logodds.male = predict(model.ethnic))
+evals.ethnic
+```
+
+## Odds
+```{r}
+model.ethnic %>%
+ coef() %>%
+  exp()
+```
+
+
+```{r}
+# the number of instructors in the minority
+pmin <- evals.ethnic %>%
+              filter(ethnicity == "minority") %>%
+              summarize(n()) %>%
+              pull()
+pmin
+
+# the number of male instructors in the minority
+pmin.male <- evals.ethnic %>%
+              filter(ethnicity == "minority", gender == "male") %>%
+              summarize(n()) %>%
+              pull()
+pmin.male
+
+# the proportion/probability of males in the minority
+prob.min.male <- pmin.male / pmin
+prob.min.male 
+
+# the odds of an instructor being male given they are in the minority
+odds.min.male <- prob.min.male / (1 - prob.min.male)
+odds.min.male
+```
+
+95% confidence interval for the odds
+```{r}
+ethnic.odds.lower <- exp(ethnic.logodds.lower)
+ethnic.odds.lower
+ethnic.odds.upper <- exp(ethnic.logodds.upper)
+ethnic.odds.upper
+plot_model(model.ethnic, show.values = TRUE,
+           title = "Odds (Male instructor)", show.p = FALSE)
+```
+
+add the estimates of the odds:
+```{r}
+evals.ethnic <- evals.ethnic %>%
+                  mutate(odds.male = exp(logodds.male))
+evals.ethnic 
+```
+
+## Probabilities
+
+The probabilities of an instructor being male given they are in the minority and not minority groups are:
+
+```{r}
+plogis(mod.ethnic.coef.logodds["(Intercept)", "Estimate"])
+plogis(mod.ethnic.coef.logodds["(Intercept)", "Estimate"] + 
+         mod.ethnic.coef.logodds["ethnicitynot minority", "Estimate"]) 
+```
+add the probabilities to our data:
+```{r}
+evals.ethnic <- evals.ethnic %>%
+                  mutate(probs.male = fitted(model.ethnic))
+evals.ethnic
+```
+
+produce the estimated probabilities:
+```{r}
+plot_model(model.ethnic, type = "pred", title = "",
+            axis.title = c("Ethnicity", "Prob. of instructor being male"))
+```
+
+
+
+
+# Further tasks
+
+
+
+
+
+
+
+
+
+
+
