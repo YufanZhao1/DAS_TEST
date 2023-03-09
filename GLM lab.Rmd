@@ -1,8 +1,8 @@
 ---
 title: "GLM"
-#output: html_document
+output: html_document
 date: "2023-03-09"
-output: github_document
+#output: github_document 
 ---
 
 ```{r setup, include=FALSE}
@@ -91,7 +91,7 @@ mod.coef.logodds
 
 #logodds.lower
 age.logodds.lower <- mod.coef.logodds["age", "Estimate"] - 
-                      1.96 * mod.coef.logodds["age", "Std.Error"]
+                      1.96 * mod.coef.logodds["age", "Std. Error"]
 age.logodds.lower
 
 #logodds.upper
